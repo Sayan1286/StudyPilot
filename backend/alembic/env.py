@@ -5,7 +5,11 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 from app.core.config import settings
 from app.db.database import Base
+from app.models.study_plan import StudyPlan  # noqa: F401
+from app.models.study_task import StudyTask  # noqa: F401
+from app.models.user import User  # noqa: F401
 
+target_metadata = Base.metadata
 target_metadata = Base.metadata
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
