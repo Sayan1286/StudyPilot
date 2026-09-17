@@ -1,3 +1,4 @@
+# ruff: noqa: B008
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
@@ -8,7 +9,6 @@ from app.core.security import decode_access_token
 from app.db.database import get_db
 from app.models.user import User
 from app.repositories.user import get_user_by_id
-
 
 security_scheme = HTTPBearer()
 
