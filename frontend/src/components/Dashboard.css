@@ -294,3 +294,13 @@
     text-align: left;
   }
 }
+.generation-success {
+  margin-bottom: 24px;
+  padding: 14px 16px;
+  border: 1px solid #bfe4cc;
+  border-radius: 12px;
+  background: #f0fbf4;
+  color: #24703b;
+  font-size: 14px;
+  font-weight: 700;
+}
