@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import GenerateStudyPlanModal from './GenerateStudyPlanModal'
+import StudyPlanDetails from './StudyPlanDetails'
 import { api } from '../lib/api'
 import type {
   StudyPlan,
@@ -14,6 +15,48 @@ type DashboardProps = {
   token: string
   onLogout: () => void
 }
+
+const demoStudyPlans: StudyPlan[] = [
+  {
+    id: 'demo-python',
+    user_id: 'demo',
+    title: 'Python Fundamentals',
+    subject: 'Python',
+    goal: 'Build a strong Python foundation',
+    start_date: '2026-09-20',
+    end_date: '2026-09-26',
+    daily_hours: 2,
+    status: 'demo',
+    created_at: '',
+    updated_at: '',
+  },
+  {
+    id: 'demo-backend',
+    user_id: 'demo',
+    title: 'Backend Development',
+    subject: 'FastAPI',
+    goal: 'Learn REST APIs and backend architecture',
+    start_date: '2026-09-20',
+    end_date: '2026-09-27',
+    daily_hours: 2.5,
+    status: 'demo',
+    created_at: '',
+    updated_at: '',
+  },
+  {
+    id: 'demo-database',
+    user_id: 'demo',
+    title: 'Database Fundamentals',
+    subject: 'PostgreSQL',
+    goal: 'Learn SQL, relationships, indexes, and migrations',
+    start_date: '2026-09-22',
+    end_date: '2026-09-28',
+    daily_hours: 1.5,
+    status: 'demo',
+    created_at: '',
+    updated_at: '',
+  },
+]
 
 function formatDate(dateString: string) {
   return new Intl.DateTimeFormat('en', {
@@ -29,6 +72,8 @@ function Dashboard({ user, token, onLogout }: DashboardProps) {
   const [error, setError] = useState('')
   const [showGenerationModal, setShowGenerationModal] = useState(false)
   const [generatedMessage, setGeneratedMessage] = useState('')
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
+  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -66,13 +111,14 @@ function Dashboard({ user, token, onLogout }: DashboardProps) {
     setShowGenerationModal(true)
   }
 
-  function handleGenerated(generatedPlan: StudyPlanGenerationResponse) {
+  function handleGenerated(
+    generatedPlan: StudyPlanGenerationResponse,
+  ) {
     setGeneratedMessage(
       `Created "${generatedPlan.title}" with ${generatedPlan.tasks.length} daily tasks.`,
     )
 
-    api
-      .listStudyPlans(token)
+    api.listStudyPlans(token)
       .then((plans) => {
         setStudyPlans(plans)
         setError('')
@@ -84,6 +130,53 @@ function Dashboard({ user, token, onLogout }: DashboardProps) {
             : 'The plan was created, but the dashboard could not refresh.',
         )
       })
+  }
+
+  async function handleDeletePlan(planId: string) {
+    const plan = studyPlans.find((item) => item.id === planId)
+
+    if (!plan) {
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Delete "${plan.title}"? This will also delete its study tasks.`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    setDeletingPlanId(planId)
+    setError('')
+
+    try {
+      await api.deleteStudyPlan(token, planId)
+
+      setStudyPlans((currentPlans) =>
+        currentPlans.filter((item) => item.id !== planId),
+      )
+
+      setGeneratedMessage(`Deleted "${plan.title}".`)
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Could not delete the study plan.',
+      )
+    } finally {
+      setDeletingPlanId(null)
+    }
+  }
+
+  if (selectedPlanId) {
+    return (
+      <StudyPlanDetails
+        token={token}
+        studyPlanId={selectedPlanId}
+        onBack={() => setSelectedPlanId(null)}
+      />
+    )
   }
 
   return (
@@ -192,8 +285,78 @@ function Dashboard({ user, token, onLogout }: DashboardProps) {
               {studyPlans.map((plan) => (
                 <article key={plan.id} className="plan-card">
                   <div className="plan-card-top">
-                    <span className="plan-status">
+                    <span
+                      className={
+                        plan.status === 'demo'
+                          ? 'plan-status plan-status-demo'
+                          : 'plan-status'
+                      }
+                    >
                       {plan.status}
+                    </span>
+
+                    <span className="plan-hours">
+                      {plan.daily_hours} hrs/day
+                    </span>
+                  </div>
+
+                  <h3>{plan.title}</h3>
+
+                  <p className="plan-subject">{plan.subject}</p>
+
+                  <p className="plan-goal">{plan.goal}</p>
+
+                  <div className="plan-meta">
+                    <span>{formatDate(plan.start_date)}</span>
+                    <span>→</span>
+                    <span>{formatDate(plan.end_date)}</span>
+                  </div>
+
+                  <div className="plan-actions">
+                    <button
+                      type="button"
+                      className="plan-view-button"
+                      onClick={() => setSelectedPlanId(plan.id)}
+                    >
+                      View plan
+                    </button>
+
+                    <button
+                      type="button"
+                      className="plan-delete-button"
+                      disabled={deletingPlanId === plan.id}
+                      onClick={() => handleDeletePlan(plan.id)}
+                    >
+                      {deletingPlanId === plan.id
+                        ? 'Deleting...'
+                        : 'Delete'}
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {!loading && !error && (
+          <section className="demo-plans-section">
+            <div className="section-heading">
+              <div>
+                <span className="eyebrow">Examples</span>
+
+                <h2>Demo Study Plans</h2>
+              </div>
+            </div>
+
+            <div className="plans-grid">
+              {demoStudyPlans.map((plan) => (
+                <article
+                  key={plan.id}
+                  className="plan-card demo-plan-card"
+                >
+                  <div className="plan-card-top">
+                    <span className="plan-status plan-status-demo">
+                      Demo
                     </span>
 
                     <span className="plan-hours">
@@ -216,14 +379,15 @@ function Dashboard({ user, token, onLogout }: DashboardProps) {
                   <button
                     type="button"
                     className="plan-view-button"
+                    disabled
                   >
-                    View plan
+                    Demo preview
                   </button>
                 </article>
               ))}
             </div>
-          )}
-        </section>
+          </section>
+        )}
       </section>
 
       {showGenerationModal && (

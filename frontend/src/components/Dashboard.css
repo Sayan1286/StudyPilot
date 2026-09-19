@@ -304,3 +304,47 @@
   font-size: 14px;
   font-weight: 700;
 }
+.plan-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.plan-delete-button {
+  border: 1px solid #efc4c4;
+  border-radius: 10px;
+  padding: 11px 14px;
+  background: #fff7f7;
+  color: #b33a3a;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.plan-delete-button:hover {
+  background: #fff0f0;
+}
+
+.plan-delete-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.plan-status-demo {
+  background: #fff3d6;
+  color: #9a6a00;
+}
+
+.demo-plans-section {
+  display: grid;
+  gap: 22px;
+  margin-top: 48px;
+}
+
+.demo-plan-card {
+  opacity: 0.92;
+}
+
+.plan-view-button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
