@@ -10,7 +10,7 @@ from app.schemas.study_plan_generation import (
     StudyPlanGenerationRequest,
     StudyPlanGenerationResponse,
 )
-from app.services.study_plan_generation import LocalStudyPlanGenerator
+from app.services.study_plan_generation import generate_and_save_study_plan
 
 router = APIRouter(
     prefix="/study-plans",
@@ -27,5 +27,4 @@ def generate_study_plan(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> StudyPlanGenerationResponse:
-    generator = LocalStudyPlanGenerator()
-    return generator.generate(request)
+    return generate_and_save_study_plan(db, current_user.id, request)

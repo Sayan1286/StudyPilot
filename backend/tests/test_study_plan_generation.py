@@ -3,6 +3,8 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from pydantic import ValidationError
 
+from app.models.study_plan import StudyPlan
+from app.models.study_task import StudyTask
 from app.schemas.study_plan_generation import StudyPlanGenerationRequest
 from app.services.study_plan_generation import LocalStudyPlanGenerator
 
@@ -170,3 +172,53 @@ def test_generate_study_plan_endpoint(client):
     assert data["tasks"][0]["scheduled_date"] == "2026-09-20"
     assert data["tasks"][1]["scheduled_date"] == "2026-09-21"
     assert data["tasks"][2]["scheduled_date"] == "2026-09-22"
+def test_generate_study_plan_persists_plan_and_tasks(
+    client,
+    db_session,
+):
+    token = register_and_login(
+        client,
+        "persist@example.com",
+        "Persistence Student",
+    )
+
+    response = client.post(
+        "/study-plans/generate",
+        json={
+            "subject": "Python",
+            "goal": "Build a strong Python foundation",
+            "available_hours_per_day": 2.0,
+            "start_date": "2026-09-20",
+            "end_date": "2026-09-22",
+        },
+        headers=auth_header(token),
+    )
+
+    assert response.status_code == 200
+
+    plans = db_session.query(StudyPlan).all()
+
+    assert len(plans) == 1
+
+    plan = plans[0]
+
+    assert plan.title == "Python Study Plan"
+    assert plan.subject == "Python"
+    assert plan.goal == "Build a strong Python foundation"
+    assert plan.daily_hours == 2.0
+
+    tasks = (
+        db_session.query(StudyTask)
+        .filter(StudyTask.study_plan_id == plan.id)
+        .order_by(StudyTask.scheduled_date)
+        .all()
+    )
+
+    assert len(tasks) == 3
+
+    assert tasks[0].scheduled_date.isoformat() == "2026-09-20"
+    assert tasks[1].scheduled_date.isoformat() == "2026-09-21"
+    assert tasks[2].scheduled_date.isoformat() == "2026-09-22"
+
+    assert all(task.status == "pending" for task in tasks)
+    assert all(task.estimated_minutes == 120 for task in tasks)
