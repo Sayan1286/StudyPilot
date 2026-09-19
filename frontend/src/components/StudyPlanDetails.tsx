@@ -27,6 +27,7 @@ function StudyPlanDetails({
   const [studyTasks, setStudyTasks] = useState<StudyTask[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
@@ -67,6 +68,40 @@ function StudyPlanDetails({
     }
   }, [studyPlanId, token])
 
+  async function handleToggleTask(task: StudyTask) {
+    const nextStatus = task.status === 'completed' ? 'pending' : 'completed'
+
+    setUpdatingTaskId(task.id)
+    setError('')
+
+    try {
+      const updatedTask = await api.updateStudyTask(
+        token,
+        studyPlanId,
+        task.id,
+        {
+          status: nextStatus,
+        },
+      )
+
+      setStudyTasks((currentTasks) =>
+        currentTasks.map((currentTask) =>
+          currentTask.id === updatedTask.id
+            ? updatedTask
+            : currentTask,
+        ),
+      )
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Could not update the task.',
+      )
+    } finally {
+      setUpdatingTaskId(null)
+    }
+  }
+
   if (loading) {
     return (
       <main className="plan-details-shell">
@@ -77,7 +112,7 @@ function StudyPlanDetails({
     )
   }
 
-  if (error || !studyPlan) {
+  if (error && !studyPlan) {
     return (
       <main className="plan-details-shell">
         <button
@@ -89,11 +124,19 @@ function StudyPlanDetails({
         </button>
 
         <div className="plan-details-state plan-details-error">
-          <p>{error || 'Study plan not found.'}</p>
+          <p>{error}</p>
         </div>
       </main>
     )
   }
+
+  if (!studyPlan) {
+    return null
+  }
+
+  const completedTasks = studyTasks.filter(
+    (task) => task.status === 'completed',
+  ).length
 
   return (
     <main className="plan-details-shell">
@@ -111,7 +154,9 @@ function StudyPlanDetails({
 
           <h1>{studyPlan.title}</h1>
 
-          <p className="plan-details-subject">{studyPlan.subject}</p>
+          <p className="plan-details-subject">
+            {studyPlan.subject}
+          </p>
 
           <p className="plan-details-goal">{studyPlan.goal}</p>
         </div>
@@ -133,11 +178,19 @@ function StudyPlanDetails({
           </div>
 
           <div>
-            <span>Status</span>
-            <strong>{studyPlan.status}</strong>
+            <span>Progress</span>
+            <strong>
+              {completedTasks}/{studyTasks.length}
+            </strong>
           </div>
         </div>
       </section>
+
+      {error && (
+        <div className="task-update-error">
+          {error}
+        </div>
+      )}
 
       <section className="tasks-section">
         <div className="tasks-heading">
@@ -147,8 +200,7 @@ function StudyPlanDetails({
           </div>
 
           <span className="task-count">
-            {studyTasks.length}{' '}
-            {studyTasks.length === 1 ? 'task' : 'tasks'}
+            {completedTasks}/{studyTasks.length} completed
           </span>
         </div>
 
@@ -158,35 +210,66 @@ function StudyPlanDetails({
           </div>
         ) : (
           <div className="tasks-list">
-            {studyTasks.map((task, index) => (
-              <article key={task.id} className="task-card">
-                <div className="task-number">
-                  {String(index + 1).padStart(2, '0')}
-                </div>
+            {studyTasks.map((task, index) => {
+              const isCompleted = task.status === 'completed'
+              const isUpdating = updatingTaskId === task.id
 
-                <div className="task-content">
-                  <div className="task-topline">
-                    <span className="task-date">
-                      {formatDate(task.scheduled_date)}
-                    </span>
-
-                    <span className="task-status">
-                      {task.status}
-                    </span>
+              return (
+                <article
+                  key={task.id}
+                  className={`task-card ${
+                    isCompleted ? 'task-card-completed' : ''
+                  }`}
+                >
+                  <div className="task-number">
+                    {String(index + 1).padStart(2, '0')}
                   </div>
 
-                  <h3>{task.title}</h3>
+                  <div className="task-content">
+                    <div className="task-topline">
+                      <span className="task-date">
+                        {formatDate(task.scheduled_date)}
+                      </span>
 
-                  {task.description && (
-                    <p>{task.description}</p>
-                  )}
+                      <span
+                        className={`task-status ${
+                          isCompleted
+                            ? 'task-status-completed'
+                            : ''
+                        }`}
+                      >
+                        {task.status}
+                      </span>
+                    </div>
 
-                  <span className="task-duration">
-                    {task.estimated_minutes} minutes
-                  </span>
-                </div>
-              </article>
-            ))}
+                    <h3>{task.title}</h3>
+
+                    {task.description && <p>{task.description}</p>}
+
+                    <span className="task-duration">
+                      {task.estimated_minutes} minutes
+                    </span>
+
+                    <button
+                      type="button"
+                      className={
+                        isCompleted
+                          ? 'task-toggle-button task-toggle-button-completed'
+                          : 'task-toggle-button'
+                      }
+                      disabled={isUpdating}
+                      onClick={() => handleToggleTask(task)}
+                    >
+                      {isUpdating
+                        ? 'Updating...'
+                        : isCompleted
+                          ? '↶ Reopen task'
+                          : '✓ Mark complete'}
+                    </button>
+                  </div>
+                </article>
+              )
+            })}
           </div>
         )}
       </section>

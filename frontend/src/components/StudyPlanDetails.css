@@ -211,3 +211,56 @@
     grid-template-columns: 1fr;
   }
 }
+.task-update-error {
+  width: min(1180px, 100%);
+  box-sizing: border-box;
+  margin: 20px auto 0;
+  padding: 12px 14px;
+  border: 1px solid #f0b7b7;
+  border-radius: 10px;
+  background: #fff2f2;
+  color: #9d3333;
+  font-size: 14px;
+}
+
+.task-card-completed {
+  background: #f7fcf8;
+  border-color: #cce8d4;
+}
+
+.task-card-completed .task-content h3 {
+  color: #51705a;
+  text-decoration: line-through;
+}
+
+.task-status-completed {
+  background: #e7f7ec;
+  color: #28703d;
+}
+
+.task-toggle-button {
+  margin-top: 16px;
+  border: 1px solid #5262dd;
+  border-radius: 9px;
+  padding: 9px 13px;
+  background: #5262dd;
+  color: white;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.task-toggle-button:hover {
+  filter: brightness(0.96);
+}
+
+.task-toggle-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.task-toggle-button-completed {
+  border-color: #c8ddd0;
+  background: #eef8f1;
+  color: #28703d;
+}
