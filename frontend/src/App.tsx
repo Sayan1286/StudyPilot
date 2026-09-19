@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { SyntheticEvent } from 'react'
 
+import Dashboard from './components/Dashboard'
 import { api } from './lib/api'
 import type { User } from './lib/api'
 import './App.css'
@@ -53,6 +54,8 @@ function App() {
 
         setMode('login')
         setPassword('')
+        setFullName('')
+        setShowPassword(false)
         setError('')
         return
       }
@@ -65,9 +68,10 @@ function App() {
       localStorage.setItem(TOKEN_KEY, tokenResponse.access_token)
 
       const currentUser = await api.me(tokenResponse.access_token)
-      setUser(currentUser)
 
+      setUser(currentUser)
       setPassword('')
+      setShowPassword(false)
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -86,6 +90,7 @@ function App() {
     setEmail('')
     setPassword('')
     setFullName('')
+    setShowPassword(false)
     setMode('login')
     setError('')
   }
@@ -101,41 +106,18 @@ function App() {
   }
 
   if (user) {
+    const token = localStorage.getItem(TOKEN_KEY)
+
+    if (!token) {
+      return null
+    }
+
     return (
-      <main className="app-shell">
-        <section className="welcome-card">
-          <div className="brand">StudyPilot</div>
-
-          <span className="eyebrow">Welcome back</span>
-
-          <h1>{user.full_name}</h1>
-
-          <p className="welcome-text">
-            Your study workspace is ready. Next we'll connect your study plans,
-            daily tasks, and AI generation dashboard.
-          </p>
-
-          <div className="user-details">
-            <div>
-              <span>Email</span>
-              <strong>{user.email}</strong>
-            </div>
-
-            <div>
-              <span>Account status</span>
-              <strong>{user.is_active ? 'Active' : 'Inactive'}</strong>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className="primary-button"
-            onClick={handleLogout}
-          >
-            Log out
-          </button>
-        </section>
-      </main>
+      <Dashboard
+        user={user}
+        token={token}
+        onLogout={handleLogout}
+      />
     )
   }
 
@@ -182,7 +164,9 @@ function App() {
               {mode === 'login' ? 'Welcome back' : 'Get started'}
             </span>
 
-            <h2>{mode === 'login' ? 'Sign in' : 'Create your account'}</h2>
+            <h2>
+              {mode === 'login' ? 'Sign in' : 'Create your account'}
+            </h2>
 
             <p>
               {mode === 'login'
@@ -219,6 +203,7 @@ function App() {
             {mode === 'register' && (
               <label>
                 Full name
+
                 <input
                   type="text"
                   value={fullName}
@@ -233,6 +218,7 @@ function App() {
 
             <label>
               Email
+
               <input
                 type="email"
                 value={email}
@@ -243,28 +229,33 @@ function App() {
             </label>
 
             <label>
-  Password
-  <div className="password-field">
-    <input
-      type={showPassword ? 'text' : 'password'}
-      value={password}
-      onChange={(event) => setPassword(event.target.value)}
-      placeholder="Minimum 8 characters"
-      minLength={8}
-      maxLength={72}
-      required
-    />
+              Password
 
-    <button
-      type="button"
-      className="password-toggle"
-      onClick={() => setShowPassword((visible) => !visible)}
-      aria-label={showPassword ? 'Hide password' : 'Show password'}
-    >
-      {showPassword ? 'Hide' : 'Show'}
-    </button>
-  </div>
-</label>
+              <div className="password-field">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Minimum 8 characters"
+                  minLength={8}
+                  maxLength={72}
+                  required
+                />
+
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() =>
+                    setShowPassword((visible) => !visible)
+                  }
+                  aria-label={
+                    showPassword ? 'Hide password' : 'Show password'
+                  }
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </label>
 
             {error && <div className="error-message">{error}</div>}
 
