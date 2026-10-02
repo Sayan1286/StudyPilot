@@ -350,6 +350,43 @@ function formatDate(dateString: string) {
   }).format(new Date(`${dateString}T00:00:00`))
 }
 
+function getTaskProgress(tasks: StudyTask[]) {
+  const total = tasks.length
+
+  const completed = tasks.filter(
+    (task) => task.status === 'completed',
+  ).length
+
+  const percentage =
+    total === 0 ? 0 : Math.round((completed / total) * 100)
+
+  return {
+    total,
+    completed,
+    percentage,
+  }
+}
+
+async function loadPlansWithTasks(token: string) {
+  const plans = await api.listStudyPlans(token)
+
+  const taskEntries = await Promise.all(
+    plans.map(async (plan) => {
+      const tasks = await api.listStudyTasks(token, plan.id)
+
+      return [plan.id, tasks] as const
+    }),
+  )
+
+  return {
+    plans,
+    tasksByPlan: Object.fromEntries(taskEntries) as Record<
+      string,
+      StudyTask[]
+    >,
+  }
+}
+
 function DemoPlanDetails({
   data,
   onBack,
@@ -504,24 +541,37 @@ function DemoPlanDetails({
 
 function Dashboard({ user, token, onLogout }: DashboardProps) {
   const [studyPlans, setStudyPlans] = useState<StudyPlan[]>([])
+  const [studyPlanTasks, setStudyPlanTasks] = useState<
+    Record<string, StudyTask[]>
+  >({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showGenerationModal, setShowGenerationModal] = useState(false)
   const [generatedMessage, setGeneratedMessage] = useState('')
-  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
-  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null)
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(
+    null,
+  )
+  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(
+    null,
+  )
 
   useEffect(() => {
+    if (selectedPlanId !== null) {
+      return
+    }
+
     let active = true
 
-    api.listStudyPlans(token)
-      .then((plans) => {
+    async function loadDashboardData() {
+      try {
+        const { plans, tasksByPlan } = await loadPlansWithTasks(token)
+
         if (active) {
           setStudyPlans(plans)
+          setStudyPlanTasks(tasksByPlan)
           setError('')
         }
-      })
-      .catch((requestError) => {
+      } catch (requestError) {
         if (active) {
           setError(
             requestError instanceof Error
@@ -529,17 +579,19 @@ function Dashboard({ user, token, onLogout }: DashboardProps) {
               : 'Could not load your study plans.',
           )
         }
-      })
-      .finally(() => {
+      } finally {
         if (active) {
           setLoading(false)
         }
-      })
+      }
+    }
+
+    void loadDashboardData()
 
     return () => {
       active = false
     }
-  }, [token])
+  }, [selectedPlanId, token])
 
   function openGenerationModal() {
     setGeneratedMessage('')
@@ -547,25 +599,26 @@ function Dashboard({ user, token, onLogout }: DashboardProps) {
     setShowGenerationModal(true)
   }
 
-  function handleGenerated(
+  async function handleGenerated(
     generatedPlan: StudyPlanGenerationResponse,
   ) {
     setGeneratedMessage(
       `Created "${generatedPlan.title}" with ${generatedPlan.tasks.length} daily tasks.`,
     )
 
-    api.listStudyPlans(token)
-      .then((plans) => {
-        setStudyPlans(plans)
-        setError('')
-      })
-      .catch((requestError) => {
-        setError(
-          requestError instanceof Error
-            ? requestError.message
-            : 'The plan was created, but the dashboard could not refresh.',
-        )
-      })
+    try {
+      const { plans, tasksByPlan } = await loadPlansWithTasks(token)
+
+      setStudyPlans(plans)
+      setStudyPlanTasks(tasksByPlan)
+      setError('')
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'The plan was created, but the dashboard could not refresh.',
+      )
+    }
   }
 
   async function handleDeletePlan(planId: string) {
@@ -592,6 +645,14 @@ function Dashboard({ user, token, onLogout }: DashboardProps) {
       setStudyPlans((currentPlans) =>
         currentPlans.filter((item) => item.id !== planId),
       )
+
+      setStudyPlanTasks((currentTasks) => {
+        const nextTasks = { ...currentTasks }
+
+        delete nextTasks[planId]
+
+        return nextTasks
+      })
 
       setGeneratedMessage(`Deleted "${plan.title}".`)
     } catch (requestError) {
@@ -730,52 +791,78 @@ function Dashboard({ user, token, onLogout }: DashboardProps) {
 
           {!loading && !error && studyPlans.length > 0 && (
             <div className="plans-grid">
-              {studyPlans.map((plan) => (
-                <article key={plan.id} className="plan-card">
-                  <div className="plan-card-top">
-                    <span className="plan-status">
-                      {plan.status}
-                    </span>
+              {studyPlans.map((plan) => {
+                const progress = getTaskProgress(
+                  studyPlanTasks[plan.id] ?? [],
+                )
 
-                    <span className="plan-hours">
-                      {plan.daily_hours} hrs/day
-                    </span>
-                  </div>
+                return (
+                  <article key={plan.id} className="plan-card">
+                    <div className="plan-card-top">
+                      <span className="plan-status">
+                        {plan.status}
+                      </span>
 
-                  <h3>{plan.title}</h3>
+                      <span className="plan-hours">
+                        {plan.daily_hours} hrs/day
+                      </span>
+                    </div>
 
-                  <p className="plan-subject">{plan.subject}</p>
+                    <h3>{plan.title}</h3>
 
-                  <p className="plan-goal">{plan.goal}</p>
+                    <p className="plan-subject">{plan.subject}</p>
 
-                  <div className="plan-meta">
-                    <span>{formatDate(plan.start_date)}</span>
-                    <span>→</span>
-                    <span>{formatDate(plan.end_date)}</span>
-                  </div>
+                    <p className="plan-goal">{plan.goal}</p>
 
-                  <div className="plan-actions">
-                    <button
-                      type="button"
-                      className="plan-view-button"
-                      onClick={() => setSelectedPlanId(plan.id)}
-                    >
-                      View plan
-                    </button>
+                    <div className="plan-meta">
+                      <span>{formatDate(plan.start_date)}</span>
+                      <span>→</span>
+                      <span>{formatDate(plan.end_date)}</span>
+                    </div>
 
-                    <button
-                      type="button"
-                      className="plan-delete-button"
-                      disabled={deletingPlanId === plan.id}
-                      onClick={() => handleDeletePlan(plan.id)}
-                    >
-                      {deletingPlanId === plan.id
-                        ? 'Deleting...'
-                        : 'Delete'}
-                    </button>
-                  </div>
-                </article>
-              ))}
+                    <div className="plan-progress">
+                      <div className="plan-progress-label">
+                        <span>
+                          {progress.completed}/{progress.total} tasks
+                          completed
+                        </span>
+
+                        <strong>{progress.percentage}%</strong>
+                      </div>
+
+                      <div className="plan-progress-track">
+                        <div
+                          className="plan-progress-fill"
+                          style={{
+                            width: `${progress.percentage}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="plan-actions">
+                      <button
+                        type="button"
+                        className="plan-view-button"
+                        onClick={() => setSelectedPlanId(plan.id)}
+                      >
+                        View plan
+                      </button>
+
+                      <button
+                        type="button"
+                        className="plan-delete-button"
+                        disabled={deletingPlanId === plan.id}
+                        onClick={() => handleDeletePlan(plan.id)}
+                      >
+                        {deletingPlanId === plan.id
+                          ? 'Deleting...'
+                          : 'Delete'}
+                      </button>
+                    </div>
+                  </article>
+                )
+              })}
             </div>
           )}
         </section>
@@ -794,42 +881,66 @@ function Dashboard({ user, token, onLogout }: DashboardProps) {
             </div>
 
             <div className="plans-grid">
-              {demoPlans.map(({ plan }) => (
-                <article
-                  key={plan.id}
-                  className="plan-card demo-plan-card"
-                >
-                  <div className="plan-card-top">
-                    <span className="plan-status plan-status-demo">
-                      Demo
-                    </span>
+              {demoPlans.map(({ plan, tasks }) => {
+                const progress = getTaskProgress(tasks)
 
-                    <span className="plan-hours">
-                      {plan.daily_hours} hrs/day
-                    </span>
-                  </div>
-
-                  <h3>{plan.title}</h3>
-
-                  <p className="plan-subject">{plan.subject}</p>
-
-                  <p className="plan-goal">{plan.goal}</p>
-
-                  <div className="plan-meta">
-                    <span>{formatDate(plan.start_date)}</span>
-                    <span>→</span>
-                    <span>{formatDate(plan.end_date)}</span>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="plan-view-button"
-                    onClick={() => setSelectedPlanId(plan.id)}
+                return (
+                  <article
+                    key={plan.id}
+                    className="plan-card demo-plan-card"
                   >
-                    View demo
-                  </button>
-                </article>
-              ))}
+                    <div className="plan-card-top">
+                      <span className="plan-status plan-status-demo">
+                        Demo
+                      </span>
+
+                      <span className="plan-hours">
+                        {plan.daily_hours} hrs/day
+                      </span>
+                    </div>
+
+                    <h3>{plan.title}</h3>
+
+                    <p className="plan-subject">{plan.subject}</p>
+
+                    <p className="plan-goal">{plan.goal}</p>
+
+                    <div className="plan-meta">
+                      <span>{formatDate(plan.start_date)}</span>
+                      <span>→</span>
+                      <span>{formatDate(plan.end_date)}</span>
+                    </div>
+
+                    <div className="plan-progress">
+                      <div className="plan-progress-label">
+                        <span>
+                          {progress.completed}/{progress.total} tasks
+                          completed
+                        </span>
+
+                        <strong>{progress.percentage}%</strong>
+                      </div>
+
+                      <div className="plan-progress-track">
+                        <div
+                          className="plan-progress-fill"
+                          style={{
+                            width: `${progress.percentage}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="plan-view-button"
+                      onClick={() => setSelectedPlanId(plan.id)}
+                    >
+                      View demo
+                    </button>
+                  </article>
+                )
+              })}
             </div>
           </section>
         )}
@@ -840,7 +951,7 @@ function Dashboard({ user, token, onLogout }: DashboardProps) {
           token={token}
           onClose={() => setShowGenerationModal(false)}
           onGenerated={(generatedPlan) => {
-            handleGenerated(generatedPlan)
+            void handleGenerated(generatedPlan)
             setShowGenerationModal(false)
           }}
         />
